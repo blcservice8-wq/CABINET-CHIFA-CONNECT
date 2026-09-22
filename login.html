@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion — MEDICAL LAB SaaS</title>
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="brand"><span class="logo-dot">⚕</span></div>
+    <h2>MEDICAL LAB SaaS</h2>
+    <p class="sub">Connectez-vous à votre espace</p>
+
+    <div class="auth-err" id="authErr"></div>
+    <div class="field"><label>Identifiant ou email</label><input id="li_user" autocomplete="username"></div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <div class="pwd-wrap">
+        <input id="li_pwd" type="password" autocomplete="current-password">
+        <button type="button" onclick="togglePwd()">Afficher</button>
+      </div>
+    </div>
+    <div class="field" style="display:flex; align-items:center; justify-content:space-between;">
+      <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="li_remember"> Se souvenir de moi</label>
+      <a href="#" style="font-size:12.5px;" onclick="alert('Fonction de récupération à connecter à Firebase Authentication.'); return false;">Mot de passe oublié ?</a>
+    </div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="doLogin()" id="loginBtn">Se connecter</button>
+
+    <div class="demo-accounts">
+      <div class="dtitle">Comptes de démonstration</div>
+      <div class="demo-chip" onclick="fillDemo('admin','Admin123')"><span>Administrateur — <b>admin</b></span><span>Admin123</span></div>
+      <div class="demo-chip" onclick="fillDemo('laboratoire','Laboratoire123')"><span>Laboratoire — <b>laboratoire</b></span><span>Laboratoire123</span></div>
+      <div class="demo-chip" onclick="fillDemo('facturation','Facturation123')"><span>Facturation — <b>facturation</b></span><span>Facturation123</span></div>
+      <p style="font-size:11px; color:var(--sub); margin-top:8px;">Identifiants de démonstration uniquement — à ne jamais utiliser en production.</p>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/store.js"></script>
+<script src="js/auth.js"></script>
+<script>
+function fillDemo(u,p){ document.getElementById('li_user').value=u; document.getElementById('li_pwd').value=p; }
+function togglePwd(){
+  const i = document.getElementById('li_pwd');
+  i.type = i.type==='password' ? 'text' : 'password';
+}
+function showErr(msg){
+  const e = document.getElementById('authErr');
+  e.textContent = msg; e.style.display = 'block';
+}
+async function doLogin(){
+  const btn = document.getElementById('loginBtn');
+  const user = document.getElementById('li_user').value.trim();
+  const pwd = document.getElementById('li_pwd').value;
+  document.getElementById('authErr').style.display='none';
+  if(!user || !pwd){ showErr('Veuillez renseigner votre identifiant et votre mot de passe.'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Connexion…';
+  try{
+    await Auth.login(user, pwd, document.getElementById('li_remember').checked);
+    window.location.href = 'dashboard.html';
+  }catch(err){
+    showErr(err.message || 'Erreur de connexion.');
+    btn.disabled = false; btn.textContent = 'Se connecter';
+  }
+}
+document.getElementById('li_pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+if(Auth.getSession()) window.location.href = 'dashboard.html';
+</script>
+</body>
+</html>
