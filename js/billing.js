@@ -57,7 +57,7 @@ function openInvoiceForm(){
     </div>
     <div class="field"><label>Prestations *</label>
       <div class="check-row" style="border:1px solid var(--line); border-radius:8px; padding:10px; flex-direction:column; align-items:stretch;">
-        ${analyses.map(a=>`<label style="justify-content:space-between;"><span><input type="checkbox" value="${a.id}" data-prix="${a.prix}" class="if-analyse"> ${esc(a.label)}</span><span>${fmtMoney(a.prix)}</span></label>`).join("")}
+        ${analyses.map(a=>`<label style="justify-content:space-between;"><span><input type="checkbox" value="${a.id}" data-prix="${a.prix}" data-label="${esc(a.label)}" class="if-analyse"> ${esc(a.label)}</span><span>${fmtMoney(a.prix)}</span></label>`).join("")}
       </div>
     </div>
     <div class="field"><label>Remise globale (FCFA)</label><input id="if_remise" type="number" value="0"></div>
@@ -72,7 +72,7 @@ async function saveInvoice(){
   const checked = Array.from(document.querySelectorAll(".if-analyse:checked"));
   if(!patientId || !checked.length){ showToast("Sélectionnez un patient et au moins une prestation.", "bad"); return; }
   const remise = parseFloat(document.getElementById("if_remise").value) || 0;
-  const lignes = checked.map(c => ({ label: c.parentElement.querySelector('span').textContent.trim(), qte:1, prixUnitaire: parseFloat(c.dataset.prix)||0, remise:0 }));
+  const lignes = checked.map(c => ({ label: c.dataset.label, qte:1, prixUnitaire: parseFloat(c.dataset.prix)||0, remise:0 }));
   const total = Math.max(0, lignes.reduce((s,l)=>s+l.prixUnitaire*l.qte,0) - remise);
   const count = (await DB.list("invoices")).length;
   const data = {
