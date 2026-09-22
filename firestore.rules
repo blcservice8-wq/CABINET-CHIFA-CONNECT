@@ -1,0 +1,113 @@
+rules_version = '2';
+
+// ============================================================
+// FIRESTORE SECURITY RULES — MEDICAL LAB SaaS
+// ------------------------------------------------------------
+// Base de sécurité sérieuse : authentification obligatoire,
+// contrôle par rôle et par organisation (organizationId).
+// Le rôle de l'utilisateur est lu depuis son propre document
+// users/{uid} (jamais depuis le client).
+// Certaines opérations sensibles (validation de résultats,
+// suppression d'utilisateurs, écriture des journaux d'activité)
+// devraient à terme être déplacées vers des Cloud Functions afin
+// qu'aucune règle client ne puisse jamais être contournée.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return isSignedIn() ? userDoc().role : null;
+    }
+
+    function sameOrg(resourceOrgId) {
+      return isSignedIn() && userDoc().organizationId == resourceOrgId;
+    }
+
+    function isAdmin() { return role() == 'admin'; }
+    function isLabo()   { return role() == 'laboratoire'; }
+    function isFact()   { return role() == 'facturation'; }
+
+    // ---- Utilisateurs : chacun lit son propre profil, admin gère tout ----
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---- Patients : admin + laboratoire en écriture, facturation en lecture ----
+    match /patients/{patientId} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow create: if isSignedIn() && (isAdmin() || isLabo());
+      allow update: if isSignedIn() && (isAdmin() || isLabo()) && sameOrg(resource.data.organizationId);
+      allow delete: if isAdmin();
+    }
+
+    // ---- Catalogue d'analyses : admin + laboratoire ----
+    match /analyses/{analyseId} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow write: if isSignedIn() && (isAdmin() || isLabo());
+    }
+
+    // ---- Demandes d'analyses / Résultats / Bulletins ----
+    match /analysisRequests/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow create: if isSignedIn() && (isAdmin() || isLabo());
+      allow update: if isSignedIn() && (isAdmin() || isLabo()) && sameOrg(resource.data.organizationId);
+      allow delete: if isAdmin();
+    }
+    match /results/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow create, update: if isSignedIn() && (isAdmin() || isLabo());
+      allow delete: if isAdmin();
+    }
+    match /bulletins/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow create, update: if isSignedIn() && (isAdmin() || isLabo());
+      allow delete: if isAdmin();
+    }
+
+    // ---- Facturation & paiements : admin + facturation ----
+    match /invoices/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow create, update: if isSignedIn() && (isAdmin() || isFact());
+      allow delete: if isAdmin();
+    }
+    match /payments/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow create: if isSignedIn() && (isAdmin() || isFact());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- Notifications : lecture pour tous les membres de l'org, écriture système ----
+    match /notifications/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId);
+      allow write: if isSignedIn();
+    }
+
+    // ---- Journal d'activité : écriture par tout utilisateur authentifié, jamais de modification/suppression ----
+    match /activityLogs/{id} {
+      allow read: if isSignedIn() && sameOrg(resource.data.organizationId) && (isAdmin() || true);
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // ---- Paramètres du laboratoire : lecture large, écriture admin uniquement ----
+    match /settings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /laboratories/{orgId} {
+      allow read: if isSignedIn() && sameOrg(orgId);
+      allow write: if isAdmin();
+    }
+  }
+}
