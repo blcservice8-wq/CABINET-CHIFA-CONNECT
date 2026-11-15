@@ -2975,9 +2975,17 @@ Inf. à 30 ans : 3,2 à 4,1 ng/mL soit 22,9 à 29,3 pmol/L
             </select>
           </div>
           <div class="field"><label>Nom du paramètre</label><input id="np_label" placeholder="ex: Glycémie"></div>
+          <div class="field"><label>Type de résultat</label>
+            <select id="np_type" onchange="toggleNpType()">
+              <option value="num">Numérique (valeur chiffrée)</option>
+              <option value="qual">Qualitatif (Positif / Négatif)</option>
+              <option value="text">Texte libre (ex: 1/80, Réactif…)</option>
+            </select>
+          </div>
           <div class="field"><label>Unité</label><input id="np_unit" placeholder="ex: g/L"></div>
-          <div class="field"><label>Valeur min normale</label><input id="np_min" type="number" step="any" placeholder="laisser vide si aucune"></div>
-          <div class="field"><label>Valeur max normale</label><input id="np_max" type="number" step="any" placeholder="laisser vide si aucune"></div>
+          <div class="field" id="np_min_wrap"><label>Valeur min normale</label><input id="np_min" type="number" step="any" placeholder="laisser vide si aucune"></div>
+          <div class="field" id="np_max_wrap"><label>Valeur max normale</label><input id="np_max" type="number" step="any" placeholder="laisser vide si aucune"></div>
+          <div class="field" id="np_ref_wrap" style="display:none;"><label>Valeur normale (texte)</label><input id="np_reftext" placeholder="ex: Négatif"></div>
           <div class="field"><label>Prix (FCFA)</label><input id="np_prix" type="number" step="any" placeholder="0"></div>
         </div>
         <button onclick="addParam()" style="margin-top:6px; background:var(--accent); color:#fff; border:none; padding:9px 16px; border-radius:6px; cursor:pointer; font-weight:600;">➕ Ajouter la rubrique</button>
@@ -3109,7 +3117,7 @@ function getParamRange(p, sexe){
   return null;
 }
 function refTextForParam(p){
-  if(p.mode==='NONE') return '';
+  if(p.mode==='NONE') return p.refText||'';
   if(p.mode==='ALL') return p.ALL[0]===0 ? `< ${fmtN(p.ALL[1])} ${p.unit}` : `${fmtN(p.ALL[0])} – ${fmtN(p.ALL[1])} ${p.unit}`;
   if(p.mode==='EFH') return `E:${fmtN(p.E[0])}-${fmtN(p.E[1])};F:${fmtN(p.F[0])}-${fmtN(p.F[1])};H:${fmtN(p.H[0])}-${fmtN(p.H[1])}`;
   if(p.mode==='EA') return `E:${fmtN(p.E[0])}-${fmtN(p.E[1])}; Adulte:${fmtN(p.ADULTE[0])}-${fmtN(p.ADULTE[1])}`;
@@ -3138,7 +3146,7 @@ function saveParams(){
 function buildForms(){
   // conserver les valeurs déjà saisies avant de reconstruire les tableaux
   const savedValues = {};
-  document.querySelectorAll('#tbl_hemo input, #tbl_formule input, #tbl_biochimie input, #tbl_serologie input').forEach(inp=>{
+  document.querySelectorAll('#tbl_hemo input, #tbl_formule input, #tbl_biochimie input, #tbl_serologie input, #tbl_hemo select, #tbl_formule select, #tbl_biochimie select, #tbl_serologie select').forEach(inp=>{
     savedValues[inp.id] = inp.value;
     if(inp.dataset.manual) savedValues[inp.id+'__manual'] = '1';
   });
@@ -3154,7 +3162,7 @@ function buildForms(){
     if(!tbody) return;
     const row = document.createElement('tr');
     row.innerHTML = `<td>${escapeHtml(p.label)}</td>
-      <td><input type="number" step="any" id="r_${p.id}" oninput="onParamInput('${p.id}')"></td>
+      <td>${paramInputHtml(p)}</td>
       <td>${escapeHtml(p.unit||'')}</td>
       <td id="st_r_${p.id}"><span class="st empty">-</span></td>`;
     tbody.appendChild(row);
@@ -3169,6 +3177,17 @@ function buildForms(){
     const el = document.getElementById(id);
     if(el && savedValues[id+'__manual']) el.dataset.manual='1';
   });
+}
+function paramInputHtml(p){
+  if(p.type==='qual'){
+    const opts = (p.options && p.options.length) ? p.options : ['Négatif','Positif'];
+    return `<select id="r_${p.id}" onchange="onParamInput('${p.id}')"><option value=""></option>`
+      + opts.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('') + `</select>`;
+  }
+  if(p.type==='text'){
+    return `<input type="text" id="r_${p.id}" oninput="onParamInput('${p.id}')">`;
+  }
+  return `<input type="number" step="any" id="r_${p.id}" oninput="onParamInput('${p.id}')">`;
 }
 function onParamInput(id){
   if(id==='vgm'||id==='tcmh'||id==='ccmh'||id==='lympho'){
@@ -3739,12 +3758,15 @@ function sectionTitle(txt, rightTxt, small){
 }
 function rowLineDynamic(p, sexe){
   const v = val('r_'+p.id);
-  const range = getParamRange(p, sexe);
+  const isNum = !p.type || p.type==='num';
+  const range = isNum ? getParamRange(p, sexe) : null;
   const st = range ? statusOf(v, range) : null;
   const refTxt = refTextForParam(p);
+  const abn = st==='bas'||st==='eleve'||(p.type==='qual' && v==='Positif');
+  const shown = v===null ? '' : (isNum ? fmtDisplay(v) : escapeHtml(v)) + (p.unit ? ' '+escapeHtml(p.unit) : '');
   return `<tr>
     <td class="name">${escapeHtml(p.label)}</td>
-    <td class="val ${st==='bas'||st==='eleve'?'abn':''}">${v!==null?fmtDisplay(v)+' '+(p.unit||''):''}</td>
+    <td class="val ${abn?'abn':''}">${shown}</td>
     <td class="ref">${refTxt?`(${refTxt})`:''}</td>
   </tr>`;
 }
@@ -4004,7 +4026,7 @@ function renderParamLists(){
 }
 function paramRowHtml(p){
   return `<tr id="prow_${p.id}">
-    <td><b>${escapeHtml(p.label)}</b><span class="p-tag">${p.unit||'—'}</span><span class="p-tag" style="background:#fdf1e0; color:#8a5a00;">${(p.prix||0).toLocaleString('fr-FR')} ${settings.devise||'FCFA'}</span><br><span style="color:var(--sub); font-size:11px;">${refTextForParam(p)||'sans norme'}</span></td>
+    <td><b>${escapeHtml(p.label)}</b><span class="p-tag">${p.type==='qual'?'Positif/Négatif':p.type==='text'?'Texte':(p.unit||'—')}</span><span class="p-tag" style="background:#fdf1e0; color:#8a5a00;">${(p.prix||0).toLocaleString('fr-FR')} ${settings.devise||'FCFA'}</span><br><span style="color:var(--sub); font-size:11px;">${refTextForParam(p)||'sans norme'}</span></td>
     <td class="p-actions">
       <button onclick="startEditParam('${p.id}')">✏️ Modifier</button>
       <button class="danger" onclick="deleteParam('${p.id}')">🗑️ Supprimer</button>
@@ -4018,7 +4040,14 @@ function startEditParam(id){
   let fields = `<div class="grid2">
       <div class="field"><label>Nom</label><input id="pe_label_${id}" value="${escapeHtml(p.label)}"></div>
       <div class="field"><label>Unité</label><input id="pe_unit_${id}" value="${escapeHtml(p.unit||'')}"></div>
-      <div class="field"><label>Prix (${settings.devise||'FCFA'})</label><input id="pe_prix_${id}" type="number" step="any" value="${p.prix||0}"></div>`;
+      <div class="field"><label>Prix (${settings.devise||'FCFA'})</label><input id="pe_prix_${id}" type="number" step="any" value="${p.prix||0}"></div>
+      <div class="field"><label>Type de résultat</label><select id="pe_type_${id}">
+        <option value="num"${(!p.type||p.type==='num')?' selected':''}>Numérique</option>
+        <option value="qual"${p.type==='qual'?' selected':''}>Qualitatif (Positif / Négatif)</option>
+        <option value="text"${p.type==='text'?' selected':''}>Texte libre</option></select></div>`;
+  if(p.mode==='NONE'){
+    fields += `<div class="field"><label>Valeur normale (texte)</label><input id="pe_reftext_${id}" value="${escapeHtml(p.refText||'')}" placeholder="ex: Négatif"></div>`;
+  }
   if(p.mode==='ALL'){
     fields += `<div class="field"><label>Min</label><input id="pe_min_${id}" type="number" step="any" value="${p.ALL[0]}"></div>
       <div class="field"><label>Max</label><input id="pe_max_${id}" type="number" step="any" value="${p.ALL[1]}"></div>`;
@@ -4048,6 +4077,13 @@ function saveEditParam(id){
   p.label = document.getElementById('pe_label_'+id).value.trim() || p.label;
   p.unit = document.getElementById('pe_unit_'+id).value.trim();
   p.prix = parseFloat(document.getElementById('pe_prix_'+id).value)||0;
+  const typeEl = document.getElementById('pe_type_'+id);
+  if(typeEl){
+    p.type = typeEl.value;
+    if(p.type==='qual' && !(p.options&&p.options.length)) p.options = ['Négatif','Positif'];
+  }
+  const refEl = document.getElementById('pe_reftext_'+id);
+  if(refEl) p.refText = refEl.value.trim();
   if(p.mode==='ALL'){
     p.ALL = [parseFloat(document.getElementById('pe_min_'+id).value)||0, parseFloat(document.getElementById('pe_max_'+id).value)||0];
   } else if(p.mode==='EFH'){
@@ -4084,9 +4120,12 @@ function addParam(){
   const prix = parseFloat(document.getElementById('np_prix').value)||0;
   if(!label){ alert("Le nom du paramètre est requis."); return; }
   const id = 'custom_'+label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')+'_'+Date.now().toString(36).slice(-4);
-  const hasRange = minV!=='' && maxV!=='';
-  const p = { id, section, label, unit, prix, mode: hasRange ? 'ALL' : 'NONE' };
+  const type = document.getElementById('np_type').value;
+  const hasRange = type==='num' && minV!=='' && maxV!=='';
+  const p = { id, section, label, unit, prix, type, mode: hasRange ? 'ALL' : 'NONE' };
   if(hasRange) p.ALL = [parseFloat(minV), parseFloat(maxV)];
+  if(type!=='num') p.refText = document.getElementById('np_reftext').value.trim();
+  if(type==='qual') p.options = ['Négatif','Positif'];
   params.push(p);
   saveParams();
   buildForms();
@@ -4097,7 +4136,15 @@ function addParam(){
   document.getElementById('np_min').value='';
   document.getElementById('np_max').value='';
   document.getElementById('np_prix').value='';
+  document.getElementById('np_reftext').value='';
   showToast('Rubrique ajoutée');
+}
+function toggleNpType(){
+  const t = document.getElementById('np_type').value;
+  const num = t==='num';
+  document.getElementById('np_min_wrap').style.display = num ? '' : 'none';
+  document.getElementById('np_max_wrap').style.display = num ? '' : 'none';
+  document.getElementById('np_ref_wrap').style.display = num ? 'none' : '';
 }
 
 /* ================= VALIDATION ================= */
