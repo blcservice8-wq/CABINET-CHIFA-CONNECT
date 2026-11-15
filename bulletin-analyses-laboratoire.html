@@ -2891,12 +2891,8 @@ Inf. à 30 ans : 3,2 à 4,1 ng/mL soit 22,9 à 29,3 pmol/L
         <h3>Sérologie inflammatoire (CRP / ASLO / FR)</h3>
         <div class="field"><label>Technique</label><input id="sero_technique1" oninput="render()"></div>
         <table class="res">
-          <thead><tr><th>Test</th><th>Résultat</th><th>Unité</th><th>Valeur normale</th></tr></thead>
-          <tbody>
-            <tr><td>CRP</td><td><input id="sero_crp_res" placeholder="ex: < 6" oninput="render()"></td><td>mg/L</td><td><input id="sero_crp_ref" value="< 6 mg/L" oninput="render()"></td></tr>
-            <tr><td>ASLO</td><td><input id="sero_aslo_res" placeholder="ex: < 200" oninput="render()"></td><td>UI/L</td><td><input id="sero_aslo_ref" value="< 200 UI/L" oninput="render()"></td></tr>
-            <tr><td>FR (Facteur Rhumatoïde)</td><td><input id="sero_fr_res" oninput="render()"></td><td>mg/L</td><td><input id="sero_fr_ref" value="" oninput="render()"></td></tr>
-          </tbody>
+          <thead><tr><th>Test</th><th>Résultat</th><th>Unité</th><th>Statut</th></tr></thead>
+          <tbody id="tbl_serologie"></tbody>
         </table>
 
         <h3 style="margin-top:14px;">Sérologie HCV / HBV / H-Pylori</h3>
@@ -3142,7 +3138,7 @@ function saveParams(){
 function buildForms(){
   // conserver les valeurs déjà saisies avant de reconstruire les tableaux
   const savedValues = {};
-  document.querySelectorAll('#tbl_hemo input, #tbl_formule input, #tbl_biochimie input').forEach(inp=>{
+  document.querySelectorAll('#tbl_hemo input, #tbl_formule input, #tbl_biochimie input, #tbl_serologie input').forEach(inp=>{
     savedValues[inp.id] = inp.value;
     if(inp.dataset.manual) savedValues[inp.id+'__manual'] = '1';
   });
@@ -3381,7 +3377,7 @@ function render(){
   renderFacture();
 }
 
-function val(id){ const v=document.getElementById(id).value; return v===''?null:v; }
+function val(id){ const el=document.getElementById(id); if(!el) return null; const v=el.value; return v===''?null:v; }
 
 function buildSheetHeader(meta, qrSuffix, titleText){
   return `
